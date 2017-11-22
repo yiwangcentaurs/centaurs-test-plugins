@@ -1,67 +1,95 @@
 import okhttp3.*;
 import org.json.JSONObject;
 
+import static java.lang.Math.toIntExact;
+
 import java.io.IOException;
-import java.util.Date;
-import java.util.Scanner;
 
-public class Plugin {
+public class Plugin extends Thread {
 
-    OkHttpClient client = new OkHttpClient();
-    MediaType mediaType = MediaType.parse("application/x-www-form-urlencoded");
+    final private OkHttpClient client = new OkHttpClient();
+
+    final static MediaType JSON
+            = MediaType.parse("application/json; charset=utf-8");
 
     // App information
-    String server = "https://robot-service.centaurstech.com/api/chat";
-    String appkey = "open-demo";
-    String appsecret = "123456789";
-    String nickname = "张三李四王老五";
+    private static String appname;
+    private static String address;
+    private static int port;
+    private int interval = 10;  // in second
 
-    // Get hardware fingerprint
-    String uid = GetNetworkAddress.GetAddress("mac");
+    public Plugin(String appname, String address, int port) {
+        this.address = address;
+        this.port = port;
+        this.appname = appname;
+    }
 
-    public String getResponse(String ask) throws Exception {
-        // Prepare verify string
-        String now = (new Date()).getTime() + "";
-        String verify = Md5.digest(appsecret + uid + now);
+    private void runTest() throws Exception {
 
-        // Generate request body
-        String bodyStr = String.format(
-                "appkey=%s&timestamp=%s&uid=%s&verify=%s&msg=%s&nickname=%s",
-                appkey, now, uid, verify, ask, nickname);
+    }
 
-        RequestBody body = RequestBody.create(mediaType,
-                bodyStr);
+    private void sysCheck() {
+        // Prepare verify
+        String path = "/api/gm/server-info/";
+        String url = String.format("%s:%d%s", address, port, path);
+
+        int sysSum = toIntExact(Runtime.getRuntime().totalMemory() / 1024);
+        int sysFree = toIntExact(Runtime.getRuntime().freeMemory() / 1024);
+        int svrFree = sysFree;
+        int svrAlc = sysSum - sysFree;
+
+        JSONObject json = new JSONObject();
+
+        json.put("sys_free", sysFree);
+        json.put("sys_sum", sysSum);
+        json.put("srv_alc", svrAlc);
+        json.put("srv_free", svrFree);
+
+        RequestBody body = RequestBody.create(JSON, json.toString());
         Request request = new Request.Builder()
-                .url(server)
+                .url(url)
                 .post(body)
                 .addHeader("content-type", "application/x-www-form-urlencoded")
                 .addHeader("cache-control", "no-cache")
                 .build();
 
-        Response response = client.newCall(request).execute();
-        String res = response.body().string();
-        System.out.println(res);
-
-        JSONObject json = new JSONObject(res);
-        if (json.has("data"))
-            System.out.println("Appended data: " + json.getJSONObject("data"));
-        else
-            System.out.println("There is no extra data");
-        return json.getString("msg");
-    }
-
-    public static void main(String[] args) throws Exception {
-        Plugin plugin = new Plugin();
-        String message = plugin.getResponse("HELLO");
-        System.out.println(message);
-
-        Scanner sc = new Scanner(System.in);
-        while (true) {
-            message = sc.nextLine();
-            message = plugin.getResponse(message);
-            System.out.println(message);
+        try {
+            Response response = client.newCall(request).execute();
+            String res = response.body().string();
+            System.out.println("[PLUGIN]" + res);
+        } catch (IOException e){
+            e.printStackTrace();
         }
 
     }
 
+    public void showConfig() {
+        System.out.println("appname: \t" + this.appname);
+        System.out.println("address: \t" + this.address);
+        System.out.println("port: \t\t" + this.port);
+        System.out.println("interval: \t" + this.interval + " sec");
+    }
+
+    public void setInterval(int interval) {
+        this.interval = interval;
+    }
+
+    @Override
+    public void run() {
+        try{
+            while(true) {
+                this.sysCheck();
+                Thread.sleep(interval * 1000);
+            }
+        } catch(InterruptedException e){
+            e.printStackTrace();
+        }
+    }
+
+    public static void main(String[] args) {
+        Plugin plugin = new Plugin("app-test","http://localhost", 10021);
+        plugin.setInterval(12);
+        plugin.showConfig();
+        plugin.start();
+    }
 }
