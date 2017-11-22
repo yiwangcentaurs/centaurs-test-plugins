@@ -10,9 +10,17 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Author: Yuancheng Zhang & Feliciano Long
+ * Please add following to gradle dependencies
+ * compile 'com.squareup.okhttp3:okhttp:3.8.1'
+ * compile group: 'org.json', name: 'json', version: '20160212'
+ */
 public class Plugin extends Thread {
 
-    public interface PLogger { void log(String content); }
+    public interface ILogger { void log(String content); }
+
+    public interface IEmailClient { boolean send(String title, String content); }
 
     final private OkHttpClient client = new OkHttpClient();
 
@@ -25,7 +33,7 @@ public class Plugin extends Thread {
     private static int port;
     private int interval = 10;  // in second
 
-    private PLogger logger;
+    private ILogger logger;
 
     private List<RunnableAction> tests;
 
@@ -40,6 +48,14 @@ public class Plugin extends Thread {
         // Default logger
         logger = content -> System.out.println(content);
     }
+
+    private IEmailClient emailClient;
+
+    public void setEmailClient(IEmailClient emailClient) {
+        this.emailClient = emailClient;
+    }
+
+    public boolean sendEmail(String title, String content) { return emailClient.send(title, content); }
 
     private void addTest(RunnableAction runnableAction) {
         tests.add(runnableAction);
