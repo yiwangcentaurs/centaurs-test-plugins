@@ -21,7 +21,7 @@ public class Plugin extends Thread {
 
     // App information
     private static String appname;
-    private static String address;
+    private static String server;
     private static int port;
     private int interval = 10;  // in second
 
@@ -29,8 +29,8 @@ public class Plugin extends Thread {
 
     private List<RunnableAction> tests;
 
-    private Plugin(String appname, String address, int port) {
-        this.address = address;
+    private Plugin(String appname, String server, int port) {
+        this.server = server;
         this.port = port;
         this.appname = appname;
 
@@ -81,7 +81,7 @@ public class Plugin extends Thread {
     private void sysCheck() {
         // Prepare verify
         String path = "/api/gm/server-info/";
-        String url = String.format("%s:%d%s", address, port, path);
+        String url = String.format("%s:%d%s", server, port, path);
 
         int sysSum = toIntExact(Runtime.getRuntime().totalMemory() / 1024);
         int sysFree = toIntExact(Runtime.getRuntime().freeMemory() / 1024);
@@ -115,7 +115,7 @@ public class Plugin extends Thread {
 
     public void showConfig() {
         logger.log("appname: \t" + this.appname);
-        logger.log("address: \t" + this.address);
+        logger.log("server: \t" + this.server);
         logger.log("port: \t\t" + this.port);
         logger.log("interval: \t" + this.interval + " sec");
     }
@@ -170,8 +170,8 @@ public class Plugin extends Thread {
         return instance;
     }
 
-    public static void newInstance(String appname, String address, int port) {
-        instance = new Plugin(appname, address, port);
+    public static void newInstance(String appname, String server, int port) {
+        instance = new Plugin(appname, server, port);
     }
 
 }
