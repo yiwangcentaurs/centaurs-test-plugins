@@ -4,8 +4,15 @@ import org.json.JSONObject;
 import static java.lang.Math.toIntExact;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Plugin extends Thread {
+
+    public interface PLogger { void log(String content); }
 
     final private OkHttpClient client = new OkHttpClient();
 
@@ -18,14 +25,57 @@ public class Plugin extends Thread {
     private static int port;
     private int interval = 10;  // in second
 
-    public Plugin(String appname, String address, int port) {
+    private PLogger logger;
+
+    private List<RunnableAction> tests;
+
+    private Plugin(String appname, String address, int port) {
         this.address = address;
         this.port = port;
         this.appname = appname;
+
+        // Synchronized test collection
+        tests = Collections.synchronizedList(new ArrayList<RunnableAction>());
+
+        // Default logger
+        logger = content -> System.out.println(content);
     }
 
-    private void runTest() throws Exception {
+    private void addTest(RunnableAction runnableAction) {
+        tests.add(runnableAction);
+    }
 
+    private void runTest() {
+        AtomicInteger ordinal = new AtomicInteger();
+
+        tests.forEach(runnableAction -> {
+            logger.log("Running test: " + runnableAction.getActionName());
+            boolean success = false;
+            Exception exception = null;
+            try {
+                success = runnableAction.run();
+            } catch (Exception e) {
+                exception = e;
+            } finally {
+                if ( !success ) {
+                    // Unsuccessful handler here
+                    ordinal.getAndIncrement();
+                    this.onFailedTest(
+                            runnableAction.getActionName(),
+                            (exception == null ? "Returned false" : exception.getMessage())
+                    );
+                }
+            }
+        });
+
+        if ( ordinal.get() > 0 ) {
+            logger.log("Tests failed: " + ordinal.get() );
+        }
+    }
+
+    private void onFailedTest(String actionName, String message) {
+        logger.log("Test failed: " + actionName + ". Message: " + message);
+        // TODO: Handles failed test here
     }
 
     private void sysCheck() {
@@ -56,7 +106,7 @@ public class Plugin extends Thread {
         try {
             Response response = client.newCall(request).execute();
             String res = response.body().string();
-            System.out.println("[PLUGIN]" + res);
+            logger.log("[PLUGIN]" + res);
         } catch (IOException e){
             e.printStackTrace();
         }
@@ -64,10 +114,10 @@ public class Plugin extends Thread {
     }
 
     public void showConfig() {
-        System.out.println("appname: \t" + this.appname);
-        System.out.println("address: \t" + this.address);
-        System.out.println("port: \t\t" + this.port);
-        System.out.println("interval: \t" + this.interval + " sec");
+        logger.log("appname: \t" + this.appname);
+        logger.log("address: \t" + this.address);
+        logger.log("port: \t\t" + this.port);
+        logger.log("interval: \t" + this.interval + " sec");
     }
 
     public void setInterval(int interval) {
@@ -79,6 +129,7 @@ public class Plugin extends Thread {
         try{
             while(true) {
                 this.sysCheck();
+                this.runTest();
                 Thread.sleep(interval * 1000);
             }
         } catch(InterruptedException e){
@@ -87,9 +138,40 @@ public class Plugin extends Thread {
     }
 
     public static void main(String[] args) {
-        Plugin plugin = new Plugin("app-test","http://localhost", 10021);
-        plugin.setInterval(12);
-        plugin.showConfig();
-        plugin.start();
+        Plugin.newInstance("app-test","http://localhost", 10021);
+        Plugin.getInstance().setInterval(12);
+        Plugin.getInstance().showConfig();
+        Plugin.getInstance().start();
+
+        RunnableAction randomTest = new RunnableAction("CatInTheBox") {
+            @Override
+            boolean run() throws Exception {
+                Random random = new Random();
+                if (random.nextInt(2) == 1)
+                    throw new IOException("The cat is dead :(");
+                return true;
+            }
+        };
+
+        Plugin.getInstance().addTest(randomTest);
+        Plugin.getInstance().addTest(randomTest);
+        Plugin.getInstance().addTest(randomTest);
+        Plugin.getInstance().addTest(randomTest);
+        Plugin.getInstance().addTest(randomTest);
     }
+
+    // Singleton
+    private static Plugin instance;
+
+    public static Plugin getInstance() {
+        if (instance == null) {
+            throw new NullPointerException("Couldn't find plugin instance, please init first.");
+        }
+        return instance;
+    }
+
+    public static void newInstance(String appname, String address, int port) {
+        instance = new Plugin(appname, address, port);
+    }
+
 }
